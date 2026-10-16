@@ -1,0 +1,172 @@
+/* ==========================================
+   三線跑酷遊戲 — 全域樣式
+   ========================================== */
+
+/* --- 重置與基礎設定 --- */
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+/* --- body：深色背景、全螢幕高度、Flex 置中 --- */
+body {
+  background-color: #1a1a2e;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 100vh;
+  font-family: 'Noto Sans TC', '微軟正黑體', sans-serif;
+  color: #ffffff;
+}
+
+/* --- 遊戲主容器：相對定位供覆蓋層參考、Flex 置中 --- */
+#game-container {
+  position: relative;  /* 作為 #screen-idle 與 #screen-gameover 的定位參考 */
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  background-color: #1a1a2e;
+}
+
+/* --- 遊戲畫布：響應式縮放，維持原始比例 --- */
+#game-canvas {
+  display: block;       /* 消除行內元素底部空隙 */
+  max-width: 100%;      /* 小螢幕時自動縮小 */
+  max-height: 100vh;    /* 高度不超出視窗 */
+  aspect-ratio: 3 / 4; /* 維持 480:640 比例 */
+}
+
+/* --- 共用：覆蓋層基礎樣式 --- */
+/* 同時套用於開始畫面與遊戲結束畫面 */
+#screen-idle,
+#screen-gameover {
+  position: absolute;           /* 疊在 Canvas 之上 */
+  inset: 0;                     /* top/right/bottom/left 全為 0，撐滿容器 */
+  display: flex;
+  flex-direction: column;
+  justify-content: center;      /* 垂直置中 */
+  align-items: center;          /* 水平置中 */
+  gap: 20px;                    /* 各子元素間距 */
+  background-color: rgba(10, 10, 30, 0.82); /* 半透明深色背景 */
+  color: #ffffff;
+  padding: 32px 24px;
+  text-align: center;
+}
+
+/* --- 開始畫面：預設顯示 --- */
+#screen-idle {
+  display: flex; /* 頁面載入後即顯示（JS 會依狀態切換）*/
+}
+
+/* --- 遊戲結束畫面：預設隱藏 --- */
+#screen-gameover {
+  display: none;
+}
+
+/* ==========================================
+   文字樣式
+   ========================================== */
+
+/* 遊戲標題（開始畫面） */
+.game-title {
+  font-size: clamp(2rem, 8vw, 3rem);
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  color: #4fc3f7;
+  text-shadow: 0 0 16px rgba(79, 195, 247, 0.6);
+}
+
+/* 操作說明文字 */
+.game-instruction {
+  font-size: clamp(0.9rem, 3vw, 1.1rem);
+  color: #b0bec5;
+  letter-spacing: 0.05em;
+}
+
+/* 遊戲結束標題 */
+.gameover-title {
+  font-size: clamp(1.8rem, 7vw, 2.6rem);
+  font-weight: 700;
+  color: #ef9a9a;
+  text-shadow: 0 0 12px rgba(239, 154, 154, 0.5);
+}
+
+/* 最終分數文字 */
+.final-score-text {
+  font-size: clamp(1rem, 4vw, 1.4rem);
+  color: #ffffff;
+}
+
+/* 分數數字強調 */
+#final-score {
+  font-weight: 700;
+  color: #4fc3f7;
+}
+
+/* ==========================================
+   按鈕樣式
+   ========================================== */
+
+.game-btn {
+  display: inline-block;
+  padding: 12px 36px;
+  font-size: clamp(0.95rem, 3.5vw, 1.15rem);
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  color: #1a1a2e;            /* 深色文字，與按鈕底色形成對比 */
+  background-color: #4fc3f7; /* 醒目的淺藍色 */
+  border: none;
+  border-radius: 9999px;     /* 完全圓角膠囊形狀 */
+  cursor: pointer;
+  transition: background-color 0.2s ease, transform 0.1s ease, box-shadow 0.2s ease;
+  box-shadow: 0 4px 16px rgba(79, 195, 247, 0.35);
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+/* 按鈕 hover 狀態：顏色加深、微微上移 */
+.game-btn:hover {
+  background-color: #0288d1;
+  color: #ffffff;
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(2, 136, 209, 0.5);
+}
+
+/* 按鈕 active（點擊）狀態：輕微下壓回饋 */
+.game-btn:active {
+  transform: translateY(0);
+  box-shadow: 0 2px 8px rgba(2, 136, 209, 0.4);
+}
+
+/* 按鈕 focus 狀態（鍵盤導航可存取性） */
+.game-btn:focus-visible {
+  outline: 3px solid #4fc3f7;
+  outline-offset: 3px;
+}
+
+/* ==========================================
+   響應式設計
+   ========================================== */
+
+/* 行動裝置（螢幕寬度 ≤ 480px）：縮小內距與間距 */
+@media (max-width: 480px) {
+  #screen-idle,
+  #screen-gameover {
+    gap: 16px;
+    padding: 24px 16px;
+  }
+
+  .game-btn {
+    padding: 10px 28px;
+  }
+}
+
+/* 極小螢幕（螢幕高度 ≤ 480px，如橫向手機）：進一步調整 */
+@media (max-height: 480px) {
+  #screen-idle,
+  #screen-gameover {
+    gap: 12px;
+    padding: 16px 12px;
+  }
+}

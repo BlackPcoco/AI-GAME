@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>三線跑酷</title>
+  <!-- 引入樣式表 -->
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+  <!-- 遊戲主容器，作為 Canvas 與 UI 覆蓋層的定位參考 -->
+  <div id="game-container">
+
+    <!-- 遊戲畫布：固定 480×640 邏輯解析度 -->
+    <canvas id="game-canvas" width="480" height="640"></canvas>
+
+    <!-- 開始畫面覆蓋層 -->
+    <div id="screen-idle">
+      <h1 class="game-title">三線跑酷</h1>
+      <p class="game-instruction">← → 方向鍵切換跑道</p>
+      <button id="btn-start" class="game-btn">開始遊戲</button>
+    </div>
+
+    <!-- 遊戲結束畫面覆蓋層 -->
+    <div id="screen-gameover">
+      <h2 class="gameover-title">遊戲結束</h2>
+      <p class="final-score-text">最終分數：<span id="final-score">0</span></p>
+      <button id="btn-restart" class="game-btn">重新開始</button>
+    </div>
+
+  </div>
+
+  <!-- 於 body 底部引入遊戲邏輯 -->
+  <script src="game.js"></script>
+</body>
+</html>
