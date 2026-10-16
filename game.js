@@ -14,6 +14,17 @@ const BASE_SPEED = 0.003;
 const BASE_SPAWN_INTERVAL = 1500;
 const COIN_VALUE = 50;
 const COIN_SPAWN_RATE = 0.6;
+const MAX_SPEED_MULTIPLIER = 3;
+const LANE_CHANGE_DURATION = 200;
+const SCORE_PER_SECOND = 60;
+const COLLISION_Z = 0.85;
+const MAX_FRAME_DELTA = 100;
+const REACTION_TIME = 250;
+// 以前波離開碰撞區為起點，保留橫跨兩道、反應與兩個最慢更新幀的時間。
+// 用最高速度計算距離，後續加速仍不會把安全時間壓縮到此下限以下。
+const MIN_WAVE_SPACING = (1 - COLLISION_Z) +
+  BASE_SPEED * MAX_SPEED_MULTIPLIER *
+  (2 * LANE_CHANGE_DURATION + REACTION_TIME + 2 * MAX_FRAME_DELTA) / 16.67;
 
 // ── Canvas 與 2D Context 參照 ─────────────────────────────────
 const canvas = document.getElementById('game-canvas');
@@ -29,6 +40,10 @@ const gameState = {
   playerX: 0,
   targetX: 0,
   laneChanging: false,
+  laneChangeStartX: 0,
+  laneChangeElapsed: 0,
+  queuedDirection: 0,
+  coinScore: 0,
 };
 
 let obstacles = [];
@@ -131,17 +146,21 @@ function drawHUD(ctx) {
   ctx.font = 'bold 24px monospace';
   ctx.fillStyle = 'white';
   ctx.textBaseline = 'top';
-  ctx.fillText('分數：' + Math.floor(gameState.score), 16, 16);
+  ctx.fillText('分數：' + Math.floor(gameState.score + 1e-7), 16, 16);
   ctx.restore();
 }
 
 // ── 障礙物生成 ────────────────────────────────────────────────
 function spawnWave() {
-  // 避免堆疊過密：若已有 z < 0.3 的物件則跳過
-  if (obstacles.some(obs => obs.z < 0.3)) return;
+  // 每一對相鄰波次都必須留有跨越兩條跑道的安全時間。
+  if (obstacles.some(obs => obs.z < MIN_WAVE_SPACING)) return;
 
   // 隨機打亂跑道順序
-  const lanes = [0, 1, 2].sort(() => Math.random() - 0.5);
+  const lanes = [0, 1, 2];
+  for (let i = lanes.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [lanes[i], lanes[j]] = [lanes[j], lanes[i]];
+  }
 
   // 隨機 1 或 2 條障礙物跑道
   const count = Math.random() < 0.5 ? 1 : 2;
@@ -181,15 +200,16 @@ function checkCollisions() {
   const lane = gameState.playerLane;
 
   for (const obs of obstacles) {
-    if (obs.lane === lane && obs.z >= 0.85) {
+    if (obs.lane === lane && obs.z >= COLLISION_Z) {
       setGameOver();
       return;
     }
   }
 
   for (const coin of coins) {
-    if (coin.lane === lane && coin.z >= 0.85 && !coin.collected) {
+    if (coin.lane === lane && coin.z >= COLLISION_Z && !coin.collected) {
       coin.collected = true;
+      gameState.coinScore += COIN_VALUE;
       gameState.score += COIN_VALUE;
     }
   }
@@ -206,7 +226,7 @@ function setGameOver() {
 function updateSpeed() {
   const speedMultiplier = Math.min(
     Math.pow(1.1, Math.floor(gameState.elapsed / 5000)),
-    3.0
+    MAX_SPEED_MULTIPLIER
   );
   currentSpeed  = BASE_SPEED * speedMultiplier;
   spawnInterval = BASE_SPAWN_INTERVAL / speedMultiplier;
@@ -230,26 +250,54 @@ function updateUI(status) {
 }
 
 // ── 鍵盤輸入 ──────────────────────────────────────────────────
+function beginLaneChange(direction) {
+  const nextLane = gameState.playerLane + direction;
+  if (!direction || nextLane < 0 || nextLane > 2) return;
+  gameState.playerLane = nextLane;
+  gameState.laneChangeStartX = gameState.playerX;
+  gameState.targetX = LANE_CENTERS_BOTTOM[nextLane];
+  gameState.laneChangeElapsed = 0;
+  gameState.laneChanging = true;
+}
+
 function handleKeyDown(e) {
   if (gameState.status !== 'PLAYING') return;
-  if (gameState.laneChanging) return;
+  const direction = e.key === 'ArrowLeft' ? -1 : e.key === 'ArrowRight' ? 1 : 0;
+  if (!direction) return;
+  e.preventDefault();
 
-  if (e.key === 'ArrowLeft' && gameState.playerLane > 0) {
-    gameState.playerLane  -= 1;
-    gameState.targetX      = LANE_CENTERS_BOTTOM[gameState.playerLane];
-    gameState.laneChanging = true;
-    e.preventDefault();
-  } else if (e.key === 'ArrowRight' && gameState.playerLane < 2) {
-    gameState.playerLane  += 1;
-    gameState.targetX      = LANE_CENTERS_BOTTOM[gameState.playerLane];
-    gameState.laneChanging = true;
-    e.preventDefault();
+  if (gameState.laneChanging) {
+    // 保留最新的一次後續換道，不讓快速連按遺失，也不累積長串移動。
+    const nextLane = gameState.playerLane + direction;
+    gameState.queuedDirection = nextLane >= 0 && nextLane <= 2 ? direction : 0;
+    return;
+  }
+  beginLaneChange(direction);
+}
+
+function updatePlayer(deltaTime) {
+  let remaining = deltaTime;
+  while (gameState.laneChanging) {
+    const step = Math.min(remaining, LANE_CHANGE_DURATION - gameState.laneChangeElapsed);
+    gameState.laneChangeElapsed += step;
+    remaining -= step;
+    const progress = Math.min(gameState.laneChangeElapsed / LANE_CHANGE_DURATION, 1);
+    gameState.playerX = gameState.laneChangeStartX +
+      (gameState.targetX - gameState.laneChangeStartX) * progress;
+    if (gameState.laneChangeElapsed + 1e-7 < LANE_CHANGE_DURATION) break;
+
+    gameState.playerX = gameState.targetX;
+    gameState.laneChanging = false;
+    const queued = gameState.queuedDirection;
+    gameState.queuedDirection = 0;
+    beginLaneChange(queued);
+    if (remaining <= 0) break;
   }
 }
 
 // ── 遊戲主循環 ────────────────────────────────────────────────
 function gameLoop(timestamp) {
-  const deltaTime = Math.min(timestamp - lastTimestamp, 100);
+  const deltaTime = Math.max(0, Math.min(timestamp - lastTimestamp, MAX_FRAME_DELTA));
   lastTimestamp = timestamp;
 
   if (gameState.status === 'PLAYING') {
@@ -258,20 +306,11 @@ function gameLoop(timestamp) {
     updateSpeed();
     updateObjects(deltaTime);
 
-    // 換道動畫插值（200ms 完成）
-    const diff = gameState.targetX - gameState.playerX;
-    gameState.playerX += diff * Math.min(deltaTime / 200, 1);
-    if (Math.abs(diff) < 1) {
-      gameState.playerX      = gameState.targetX;
-      gameState.laneChanging = false;
-    }
+    updatePlayer(deltaTime);
 
+    // 基礎分數依遊戲經過時間累計；金幣另計，避免更新率影響得分。
+    gameState.score = gameState.elapsed * SCORE_PER_SECOND / 1000 + gameState.coinScore;
     checkCollisions();
-
-    // 基礎計分（每幀 +1，約每秒 +60）
-    if (gameState.status === 'PLAYING') {
-      gameState.score += 1;
-    }
 
     // Draw
     drawTrack(ctx);
@@ -293,6 +332,10 @@ function startGame() {
   gameState.playerX      = LANE_CENTERS_BOTTOM[1];
   gameState.targetX      = LANE_CENTERS_BOTTOM[1];
   gameState.laneChanging = false;
+  gameState.laneChangeStartX = LANE_CENTERS_BOTTOM[1];
+  gameState.laneChangeElapsed = 0;
+  gameState.queuedDirection = 0;
+  gameState.coinScore = 0;
 
   obstacles     = [];
   coins         = [];
@@ -301,10 +344,10 @@ function startGame() {
   spawnInterval = BASE_SPAWN_INTERVAL;
 
   updateUI('PLAYING');
+  lastTimestamp = performance.now();
 
   if (!loopStarted) {
     loopStarted   = true;
-    lastTimestamp = performance.now();
     requestAnimationFrame(gameLoop);
   }
 }
