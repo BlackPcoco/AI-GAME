@@ -3,6 +3,7 @@
 // =============================================================
 
 // ── 透視渲染常數 ──────────────────────────────────────────────
+const GAME_VERSION = '2026.10.16.2';
 const CANVAS_W = 480;
 const CANVAS_H = 640;
 const VANISH_X = 240;
@@ -354,6 +355,8 @@ function startGame() {
 
 // ── 頁面初始化與事件綁定 ─────────────────────────────────────
 document.addEventListener('DOMContentLoaded', () => {
+  const versionLabel = document.getElementById('build-version');
+  if (versionLabel) versionLabel.textContent = '版本 ' + GAME_VERSION + ' · 換道 ' + LANE_CHANGE_DURATION + ' ms';
   document.getElementById('btn-start').addEventListener('click', startGame);
   document.getElementById('btn-restart').addEventListener('click', startGame);
   document.addEventListener('keydown', handleKeyDown);
